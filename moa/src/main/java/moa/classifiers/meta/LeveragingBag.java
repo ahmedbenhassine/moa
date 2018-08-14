@@ -23,6 +23,8 @@ import com.github.javacliparser.IntOption;
 import com.github.javacliparser.FloatOption;
 import com.github.javacliparser.FlagOption;
 import moa.classifiers.MultiClassClassifier;
+import moa.classifiers.Regressor;
+import moa.classifiers.trees.HoeffdingRegressionTree;
 import moa.options.ClassOption;
 import com.github.javacliparser.MultiChoiceOption;
 import moa.classifiers.core.driftdetection.ADWIN;
@@ -46,7 +48,7 @@ import moa.options.*;
  * @author Albert Bifet (abifet at cs dot waikato dot ac dot nz)
  * @version $Revision: 7 $
  */
-public class LeveragingBag extends AbstractClassifier implements MultiClassClassifier {
+public class LeveragingBag extends AbstractClassifier implements MultiClassClassifier,Regressor {
 
     private static final long serialVersionUID = 1L;
 
@@ -81,7 +83,12 @@ public class LeveragingBag extends AbstractClassifier implements MultiClassClass
                 "Leveraging Subagging using resampling without replacement."
             }, 0);
 
+    public FloatOption thresholdAdwinForRegression = new FloatOption(
+            "thresholdAdwinForRegression", 'v', "threshold used for detecting change in regression",
+            1.5, 1, 4);
+
     protected Classifier[] ensemble;
+
 
     protected ADWIN[] ADError;
 
@@ -156,8 +163,12 @@ public class LeveragingBag extends AbstractClassifier implements MultiClassClass
                     break;
                 case 1: //LeveragingBagME
                     double error = this.ADError[i].getEstimation();
-                    k = !this.ensemble[i].correctlyClassifies(weightedInst) ? 1.0 : (this.classifierRandom.nextDouble() < (error / (1.0 - error)) ? 1.0 : 0.0);
-                    break;
+                    if (inst.classAttribute().isNumeric()) {
+                        k = Math.abs((this.ensemble[i].getVotesForInstance(inst)[0] - inst.classValue() / inst.classValue())) > error ? 1.0 : (this.classifierRandom.nextDouble() < (error / (1.0 - error)) ? 1.0 : 0.0);
+                    } else {
+                        k = !this.ensemble[i].correctlyClassifies(weightedInst) ? 1.0 : (this.classifierRandom.nextDouble() < (error / (1.0 - error)) ? 1.0 : 0.0);
+                        break;
+                    }
                 case 2: //LeveragingBagHalf
                     w = 1.0;
                     k = this.classifierRandom.nextBoolean() ? 0.0 : w;
@@ -179,11 +190,28 @@ public class LeveragingBag extends AbstractClassifier implements MultiClassClass
                 weightedInst.setWeight(inst.weight() * k);
                 this.ensemble[i].trainOnInstance(weightedInst);
             }
-            boolean correctlyClassifies = this.ensemble[i].correctlyClassifies(weightedInst);
-            double ErrEstim = this.ADError[i].getEstimation();
-            if (this.ADError[i].setInput(correctlyClassifies ? 0 : 1)) {
-                if (this.ADError[i].getEstimation() > ErrEstim) {
+            if (inst.classAttribute().isNumeric()) {
+                double absError = 0 ;
+                if(this.ensemble[i] instanceof HoeffdingRegressionTree)
+                {
+                    HoeffdingRegressionTree ht = (HoeffdingRegressionTree) this.ensemble[i] ;
+                    absError = Math.abs((this.ensemble[i].getVotesForInstance(inst)[0] - inst.classValue() /ht.examplesSeen ));
+                }
+                else {
+                   absError = Math.abs((this.ensemble[i].getVotesForInstance(inst)[0] - inst.classValue() /inst.classValue()));
+                }
+                double ErrEstim = this.ADError[i].getEstimation();
+                this.ADError[i].setInput(absError);
+                if (this.ADError[i].getEstimation() > thresholdAdwinForRegression.getValue()*ErrEstim) {
                     Change = true;
+                }
+            } else {
+                boolean correctlyClassifies = this.ensemble[i].correctlyClassifies(weightedInst);
+                double ErrEstim = this.ADError[i].getEstimation();
+                if (this.ADError[i].setInput(correctlyClassifies ? 0 : 1)) {
+                    if (this.ADError[i].getEstimation() > ErrEstim) {
+                        Change = true;
+                    }
                 }
             }
         }
@@ -210,13 +238,31 @@ public class LeveragingBag extends AbstractClassifier implements MultiClassClass
         if (this.outputCodesOption.isSet()) {
             return getVotesForInstanceBinary(inst);
         }
+        double sum = 0 ;
+        double prediction = 0 ;
         DoubleVector combinedVote = new DoubleVector();
+
+
         for (int i = 0; i < this.ensemble.length; i++) {
             DoubleVector vote = new DoubleVector(this.ensemble[i].getVotesForInstance(inst));
-            if (vote.sumOfValues() > 0.0) {
-                vote.normalize();
+            if (inst.classAttribute().isNumeric()) {
                 combinedVote.addValues(vote);
             }
+            else {
+                if (vote.sumOfValues() > 0.0) {
+                    vote.normalize();
+                    combinedVote.addValues(vote);
+                }
+
+            }
+
+        }
+
+        if (inst.classAttribute().isNumeric()) {
+            sum = combinedVote.sumOfValues() ;
+            prediction = sum / this.ensemble.length;
+
+            return new double[]{prediction};
         }
         return combinedVote.getArrayRef();
     }
@@ -269,5 +315,6 @@ public class LeveragingBag extends AbstractClassifier implements MultiClassClass
     public Classifier[] getSubClassifiers() {
         return this.ensemble.clone();
     }
+
 }
 

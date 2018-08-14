@@ -20,6 +20,7 @@ package moa.classifiers.lazy;
 import java.io.StringReader;
 import moa.classifiers.AbstractClassifier;
 import moa.classifiers.MultiClassClassifier;
+import moa.classifiers.Regressor;
 import moa.classifiers.lazy.neighboursearch.KDTree;
 import moa.classifiers.lazy.neighboursearch.LinearNNSearch;
 import moa.classifiers.lazy.neighboursearch.NearestNeighbourSearch;
@@ -40,7 +41,7 @@ import com.github.javacliparser.MultiChoiceOption;
  * @author Jesse Read (jesse@tsc.uc3m.es)
  * @version 03.2012
  */
-public class kNN extends AbstractClassifier implements MultiClassClassifier {
+public class kNN extends AbstractClassifier implements MultiClassClassifier, Regressor {
 
     private static final long serialVersionUID = 1L;
 
@@ -97,15 +98,50 @@ public class kNN extends AbstractClassifier implements MultiClassClassifier {
 
 	@Override
     public double[] getVotesForInstance(Instance inst) {
-		double v[] = new double[C+1];
+        double v[] = new double[C+1];
+		double prediction = 0 ;
+        NearestNeighbourSearch search;
+        try {
+
+            if (this.nearestNeighbourSearchOption.getChosenIndex()== 0) {
+                search = new LinearNNSearch(this.window);
+            } else {
+                search = new KDTree();
+                search.setInstances(this.window);
+            }
+        } catch(Exception e) {
+            //System.err.println("Error: kNN search failed.");
+            //e.printStackTrace();
+            //System.exit(1);
+            return new double[inst.numClasses()];
+        }
+
+
+		if (inst.classAttribute().isNumeric()) {
+			try {
+                if (this.window.numInstances() > 0) {
+                    double sum = 0;
+                    Instances neighbours = search.kNearestNeighbours(inst, Math.min(kOption.getValue(), this.window.numInstances()));
+                    for (int i = 0; i < neighbours.numInstances(); i++) {
+
+                        sum = sum + neighbours.instance(i).classValue();
+
+                    }
+                    prediction = sum / neighbours.numInstances();
+
+                }
+            }
+				catch(Exception e) {
+                //System.err.println("Error: kNN search failed.");
+                //e.printStackTrace();
+                //System.exit(1);
+                return new double[1];
+            }
+
+			return new double[] {prediction};
+		}
 		try {
-			NearestNeighbourSearch search;
-			if (this.nearestNeighbourSearchOption.getChosenIndex()== 0) {
-				search = new LinearNNSearch(this.window);  
-			} else {
-				search = new KDTree();
-				search.setInstances(this.window);
-			}	
+
 			if (this.window.numInstances()>0) {	
 				Instances neighbours = search.kNearestNeighbours(inst,Math.min(kOption.getValue(),this.window.numInstances()));
 				for(int i = 0; i < neighbours.numInstances(); i++) {
