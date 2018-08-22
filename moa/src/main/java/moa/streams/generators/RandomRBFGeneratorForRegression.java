@@ -79,11 +79,11 @@ public class RandomRBFGeneratorForRegression extends RandomRBFGenerator {
                 * centroid.stdDev;
         double scale = desiredMag / magnitude;
         for (int i = 0; i < numAtts; i++) {
-            attVals[i] = centroid.centre[i] + attVals[i] * scale;
+            attVals[i] = centroid.centre[i] + attVals[i] ;
         }
         Instance inst = new DenseInstance(1.0, attVals);
         inst.setDataset(getHeader());
-        inst.setClassValue(centroid.stdDev+desiredMag);
+        inst.setClassValue(centroid.stdDev+scale);
         return new InstanceExample(inst);
     }
 

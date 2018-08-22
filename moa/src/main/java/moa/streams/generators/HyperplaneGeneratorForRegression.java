@@ -79,12 +79,14 @@ public class HyperplaneGeneratorForRegression extends HyperplaneGenerator {
 
         classLabel = sum;
 
+
+        classLabel=classLabel * 10 ;
         //Add Noise
-        classLabel = classLabel + (sumWeights*this.noisePercentageOption.getValue());
-        classLabel=classLabel*100 ;
-        //if ((1 + (this.instanceRandom.nextInt(100))) <= this.noisePercentageOption.getValue()) {
-           // classLabel = (sumWeights * classLabel);
-        //}
+        if ((1 + (this.instanceRandom.nextInt(100))) <= this.noisePercentageOption.getValue()) {
+            classLabel = classLabel + (sumWeights*this.noisePercentageOption.getValue());
+
+
+            }
 
         Instance inst = new DenseInstance(1.0, attVals);
         inst.setDataset(getHeader());
@@ -101,5 +103,7 @@ public class HyperplaneGeneratorForRegression extends HyperplaneGenerator {
                 this.sigma[i] *= -1;
             }
         }
+
     }
+
 }
