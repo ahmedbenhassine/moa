@@ -83,7 +83,7 @@ public class HyperplaneGeneratorForRegression extends HyperplaneGenerator {
         classLabel=classLabel * 10 ;
         //Add Noise
         if ((1 + (this.instanceRandom.nextInt(100))) <= this.noisePercentageOption.getValue()) {
-            classLabel = classLabel + (sumWeights*this.noisePercentageOption.getValue());
+            classLabel = classLabel +classLabel/sumWeights;
 
 
             }
